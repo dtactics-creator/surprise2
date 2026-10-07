@@ -21,6 +21,7 @@ export default function App() {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentResult, setCurrentResult] = useState<MoodResult | null>(null);
+  const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [hasSpun, setHasSpun] = useState(false);
@@ -111,6 +112,7 @@ export default function App() {
 
   const handleSpinStart = () => {
     setCurrentResult(null);
+    setCurrentOffer(null);
     setIsOfferModalOpen(false);
   };
 
@@ -120,6 +122,7 @@ export default function App() {
     let finalResult = result;
     if (activeOffers.length > 0) {
       const offer = activeOffers[offerSequenceIndex % activeOffers.length];
+      setCurrentOffer(offer);
       setOfferSequenceIndex((prev) => prev + 1);
       finalResult = {
         ...result,
@@ -280,7 +283,7 @@ export default function App() {
 
       <ResultCard
         result={currentResult}
-        offer={currentResult ? activeOffers[currentResult.faceIndex % activeOffers.length] : null}
+        offer={currentOffer}
         isSpinning={isSpinning}
         isOpen={isOfferModalOpen}
         onClose={closeOfferModal}

@@ -203,9 +203,9 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, offer, isSpinnin
                   {offer.category}
                 </span>
               </div>
-            )} */}
+            )}
 
-            {/* {offer?.blurb && (
+            {offer?.blurb && (
               <p className="mt-2.5 max-w-[20rem] text-[13px] leading-relaxed text-slate-500">
                 {offer.blurb}
               </p>

@@ -32,19 +32,22 @@ export const MoodCollection: React.FC<MoodCollectionProps> = ({
       </div>
 
       <div className="grid grid-cols-3 gap-2.5">
-        {MOODS.map((mood) => {
-          const count = stats[mood.faceIndex] || 0;
-          const isUnlocked = count > 0 || activeFaceIndex === mood.faceIndex;
-          const isActive = activeFaceIndex === mood.faceIndex;
+        {(activeOffers.length > 0 ? activeOffers : MOODS).map((item, index) => {
+          const isOffer = activeOffers.length > 0;
+          const offer = isOffer ? (item as Offer) : null;
+          const mood = MOODS[index % 3];
+          
+          const count = stats[index] || 0;
+          const isUnlocked = count > 0 || activeFaceIndex === index;
+          const isActive = activeFaceIndex === index;
 
-          const offer = activeOffers.length > 0 ? activeOffers[mood.faceIndex % activeOffers.length] : null;
           const displayBadge = offer ? offer.value : mood.discountBadge;
           const displayCode = offer ? offer.code : mood.couponCode;
 
           return (
             <button
-              key={mood.faceIndex}
-              onClick={() => !isSpinning && onSelectMood(mood.faceIndex)}
+              key={index}
+              onClick={() => !isSpinning && onSelectMood(index)}
               disabled={isSpinning}
               className={`relative flex flex-col items-center justify-center p-3 rounded-xl border transition-all text-center ${
                 isActive
@@ -61,7 +64,7 @@ export const MoodCollection: React.FC<MoodCollectionProps> = ({
               </span>
 
               <span className="text-2xl mb-1 select-none">{mood.emoji}</span>
-              <span className="text-xs font-bold text-stone-800">{mood.name}</span>
+              <span className="text-xs font-bold text-stone-800 line-clamp-1 break-all w-full">{offer ? offer.value : mood.name}</span>
 
               {/* Unlocked Coupon Code or Spin Prompt */}
               {isUnlocked ? (
