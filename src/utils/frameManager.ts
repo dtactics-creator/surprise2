@@ -618,7 +618,7 @@ function drawCuteCoffeeIcon(ctx: CanvasRenderingContext2D, geo: CupGeometry, ang
   ctx.translate(x, y);
   ctx.scale(cosT, 1);
   ctx.globalAlpha = 0.65 + 0.35 * cosT;
-  
+
   // Cute mini coffee mug
   ctx.fillStyle = 'rgba(65,35,15,0.85)';
   ctx.beginPath();
@@ -727,9 +727,7 @@ function renderFrame(ctx: CanvasRenderingContext2D, frameIndex: number, base: Ba
   }
   ctx.restore();
 
-  // Rotating glued paper seams
-  drawSeam(ctx, geo, 200, rot, sleeveTop, sleeveBot);
-  drawSeam(ctx, geo, 150, rot, sleeveBot + 4, geo.bottom - 12);
+  // Rotating glued paper seams removed by user request
 
   // Recessed windows and kawaii collectible faces (back-to-front sorting)
   const order = [0, 1, 2]

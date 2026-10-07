@@ -197,17 +197,16 @@ export const CoffeeCupToy: React.FC<CoffeeCupToyProps> = ({
   const ready = progress >= 1;
 
   return (
-    <div className="relative flex flex-col items-center justify-center select-none" style={{ touchAction: 'none' }}>
+    <div className="relative flex flex-col items-center justify-center select-none w-full h-full min-h-0" style={{ touchAction: 'none' }}>
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className={`relative z-10 cursor-grab active:cursor-grabbing transition-transform duration-150 ${isDragging ? 'scale-[1.02]' : ''}`}
-        title="Drag horizontally to fidget with the cup"
+        className={`relative z-10 cursor-grab active:cursor-grabbing transition-transform duration-150 h-full w-full flex items-center justify-center ${isDragging ? 'scale-[1.02]' : ''}`}
       >
-        <div className={`relative ${isSpinning || isDragging ? '' : 'animate-cup-idle'}`}>
-          <div className="relative w-[280px] sm:w-[360px] md:w-[420px] max-w-full aspect-[5/6]">
+        <div className={`relative flex items-center justify-center h-full w-full ${isSpinning || isDragging ? '' : 'animate-cup-idle'}`}>
+          <div className="relative h-full max-h-[1000px] aspect-[5/6] shrink-0 mx-auto">
             {src ? (
               <img
                 src={src}
@@ -233,16 +232,6 @@ export const CoffeeCupToy: React.FC<CoffeeCupToyProps> = ({
         </div>
       </div>
 
-      {dragPromptVisible && !isSpinning && src && (
-        <button
-          type="button"
-          onClick={dismissDragPrompt}
-          className="absolute -bottom-2 z-20 flex items-center gap-2 bg-stone-900/85 hover:bg-stone-900 text-stone-100 text-xs sm:text-sm font-medium px-3.5 py-1.5 rounded-full shadow-lg backdrop-blur cursor-pointer transition-all hover:scale-105 animate-bounce"
-        >
-          <Hand className="w-4 h-4 text-amber-400" />
-          <span>Swipe cup to fidget</span>
-        </button>
-      )}
 
       {!ready && (
         <div className="absolute top-1 left-1 text-[10px] text-stone-500 bg-white/70 border border-stone-200/70 px-2 py-0.5 rounded-full tabular-nums">

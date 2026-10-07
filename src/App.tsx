@@ -1,21 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CoffeeCupToy } from './components/CoffeeCupToy';
 import { ResultCard } from './components/ResultCard';
-import { MoodCollection } from './components/MoodCollection';
-import { TechInfoModal } from './components/TechInfoModal';
-import { FidgetControls } from './components/FidgetControls';
+import { CatalogModal } from './components/CatalogModal';
 import { ConfettiBurst } from './components/ConfettiBurst';
 import { MoodResult, MOODS } from './utils/frameManager';
 import { fidgetAudio } from './utils/audio';
+import { fetchActiveOffers, fetchActiveCampaignTemplate, type CampaignTemplate, type Offer } from './lib/api';
+import { useAnalyticsSession } from './hooks/useAnalyticsSession';
+import { trackEvent } from './lib/analytics';
 import {
   Volume2,
   VolumeX,
-  Info,
   RotateCw,
   Sparkles,
   Coffee,
-  TicketPercent,
-  ChevronRight,
+  Store,
 } from 'lucide-react';
 
 export default function App() {
@@ -23,10 +22,39 @@ export default function App() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentResult, setCurrentResult] = useState<MoodResult | null>(null);
   const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [hasSpun, setHasSpun] = useState(false);
   const [confettiActive, setConfettiActive] = useState(false);
   const [isMuted, setIsMuted] = useState(fidgetAudio.isMuted);
-  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [offerSequenceIndex, setOfferSequenceIndex] = useState(0);
+
+  const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
+  const [template, setTemplate] = useState<CampaignTemplate | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const domain = window.location.hostname;
+    fetchActiveOffers(domain).then(fetchedOffers => {
+      if (mounted) {
+        setActiveOffers(fetchedOffers);
+      }
+    });
+    fetchActiveCampaignTemplate(domain).then(t => {
+      if (mounted) {
+        setTemplate(t);
+        if (t?.dynamic_title) {
+          document.title = t.dynamic_title;
+        }
+      }
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  useAnalyticsSession({
+    domain: typeof window !== "undefined" ? window.location.hostname : undefined,
+    campaignSetupId: template?.campaign_setup_id,
+    templateId: template?.id,
+  });
 
   // Stats for collectible faces
   const [stats, setStats] = useState<Record<number, number>>(() => {
@@ -58,16 +86,15 @@ export default function App() {
     if (isSpinning) return;
     setConfettiActive(false);
 
-    // Randomly select 1 of 3 faces:
-    // 0: Happy 😊, 1: Surprised 😮, 2: Cool 😎
-    const randomMoodIndex = Math.floor(Math.random() * 3);
+    // Select face sequentially based on offer index to ensure order
+    const moodIndex = offerSequenceIndex % 3;
 
     // Dispatch custom event to trigger spin in CoffeeCupToy
     const event = new CustomEvent('trigger-cup-spin', {
-      detail: { moodIndex: randomMoodIndex },
+      detail: { moodIndex: moodIndex },
     });
     window.dispatchEvent(event);
-  }, [isSpinning]);
+  }, [isSpinning, offerSequenceIndex]);
 
   // Handle spin to specific face from collection card
   const handleSelectSpecificMood = useCallback(
@@ -90,7 +117,41 @@ export default function App() {
   const closeOfferModal = useCallback(() => setIsOfferModalOpen(false), []);
 
   const handleSpinComplete = (result: MoodResult) => {
-    setCurrentResult(result);
+    let finalResult = result;
+    if (activeOffers.length > 0) {
+      const offer = activeOffers[offerSequenceIndex % activeOffers.length];
+      setOfferSequenceIndex((prev) => prev + 1);
+      finalResult = {
+        ...result,
+        couponCode: offer.code,
+        discountBadge: offer.value,
+        offerTitle: offer.value,
+        offerDetails: offer.blurb,
+      };
+      trackEvent({
+        event_type: "reveal_shown",
+        reveal_type: offer.type,
+        reveal_title: offer.value,
+      });
+    } else {
+      trackEvent({
+        event_type: "reveal_shown",
+        reveal_type: "static",
+        reveal_title: finalResult.offerTitle,
+      });
+    }
+
+    // Also track in User Actions (campaign_actions)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent('track_analytics_action', {
+        detail: {
+          eventType: 'popup_shown',
+          metadata: { text: 'Offer Revealed', productName: finalResult.offerTitle || finalResult.discountBadge || 'Unknown Offer' }
+        }
+      }));
+    }
+
+    setCurrentResult(finalResult);
     setIsOfferModalOpen(true);
     setHasSpun(true);
     setConfettiActive(true);
@@ -108,7 +169,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#2C1810] flex flex-col justify-between selection:bg-amber-200">
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#FAF7F2] text-[#2C1810] flex flex-col justify-between selection:bg-amber-200">
       {/* Confetti Celebration Burst (CSS only) */}
       <ConfettiBurst active={confettiActive} colorTheme={currentResult?.accentColor} />
 
@@ -131,6 +192,16 @@ export default function App() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Store Button */}
+          <button
+            onClick={() => setIsCatalogOpen(true)}
+            className="p-2 rounded-xl bg-white/80 hover:bg-white border border-stone-200/80 text-stone-600 hover:text-stone-900 shadow-sm transition active:scale-95 flex items-center gap-1.5 text-xs font-semibold px-3"
+            title="View Store"
+          >
+            <Store className="w-4 h-4 text-amber-700" />
+            <span className="hidden sm:inline">Store</span>
+          </button>
+
           {/* Mute Button */}
           <button
             onClick={handleToggleMute}
@@ -145,36 +216,27 @@ export default function App() {
             )}
           </button>
 
-          {/* Info Modal Button */}
-          <button
-            onClick={() => setIsInfoModalOpen(true)}
-            className="p-2 rounded-xl bg-white/80 hover:bg-white border border-stone-200/80 text-stone-600 hover:text-stone-900 shadow-sm transition active:scale-95 flex items-center gap-1.5 text-xs font-semibold px-3"
-            title="How it works (Zero 3D engine)"
-          >
-            <Info className="w-4 h-4 text-amber-700" />
-            <span className="hidden sm:inline">How It Works</span>
-          </button>
         </div>
       </header>
 
       {/* MAIN HERO CONTENT */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-3 sm:py-6 max-w-xl mx-auto w-full z-10">
+      <main className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-1 sm:py-2 max-w-3xl mx-auto w-full z-10">
         {/* Typography Hero as specified in prompt */}
-        <div className="text-center mb-2 sm:mb-4">
-          <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-amber-700/80 mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
+        <div className="text-center mb-1 sm:mb-2 flex flex-col items-center gap-1 sm:gap-1.5">
+          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-[0.2em] text-amber-700/80">
+            <Sparkles className="w-3 h-3" />
             Fidget Keychain Edition
           </span>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-[#2D1A0E]">
-            COFFEE MOOD
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-[#2D1A0E] leading-tight px-4 text-balance max-w-2xl">
+            {template?.default_config?.title || "COFFEE MOOD"}
           </h2>
-          <p className="text-sm sm:text-base text-stone-500 font-medium mt-1">
-            Which face will you get?
+          <p className="text-xs sm:text-sm text-stone-500 font-medium">
+            {template?.default_config?.subtitle || "Which face will you get?"}
           </p>
         </div>
 
         {/* THE 3D-LOOKING PAPER COFFEE CUP TOY */}
-        <div className="relative my-1 sm:my-2 flex items-center justify-center">
+        <div className="relative flex-1 min-h-0 w-full flex items-center justify-center py-1">
           <CoffeeCupToy
             currentFrame={currentFrame}
             setCurrentFrame={setCurrentFrame}
@@ -186,17 +248,16 @@ export default function App() {
         </div>
 
         {/* LARGE SPIN BUTTON */}
-        <div className="mt-3 sm:mt-5 flex flex-col items-center gap-2">
+        <div className="mt-1 mb-2 sm:mb-3 flex flex-col items-center shrink-0">
           <button
             onClick={handleSpinClick}
             disabled={isSpinning}
             className={`
-              relative px-9 py-3.5 sm:px-11 sm:py-4 rounded-full font-black text-base sm:text-lg tracking-wider uppercase
+              relative px-6 py-2.5 sm:px-8 sm:py-3 rounded-full font-black text-xs sm:text-sm tracking-wider uppercase
               transition-all duration-200 select-none shadow-lg
-              ${
-                isSpinning
-                  ? 'bg-stone-300 text-stone-500 cursor-not-allowed shadow-none scale-95'
-                  : 'bg-[#3E2415] hover:bg-[#2C180B] active:bg-[#1E0F05] text-[#FDFBF7] shadow-amber-950/25 hover:shadow-xl hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-900/10'
+              ${isSpinning
+                ? 'bg-stone-300 text-stone-500 cursor-not-allowed shadow-none scale-95'
+                : 'bg-[#3E2415] hover:bg-[#2C180B] active:bg-[#1E0F05] text-[#FDFBF7] shadow-amber-950/25 hover:shadow-xl hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-amber-900/10'
               }
             `}
           >
@@ -208,83 +269,27 @@ export default function App() {
                 {isSpinning
                   ? 'SPINNING...'
                   : hasSpun
-                  ? 'SPIN AGAIN'
-                  : 'SPIN'}
+                    ? 'SPIN AGAIN'
+                    : 'SPIN'}
               </span>
             </span>
           </button>
         </div>
 
-        {/* Compact result prompt; the full coupon is shown in a modal. */}
-        <div className="w-full mt-4 min-h-[76px] flex items-center justify-center">
-          {currentResult ? (
-            <div className="animate-result-in text-center">
-              <p className="text-xs font-medium text-stone-500 mb-2">
-                {currentResult.emoji} {currentResult.name} mood unlocked
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsOfferModalOpen(true)}
-                className="group inline-flex items-center gap-2 rounded-full bg-white border border-amber-900/15 px-4 py-2 text-sm font-bold text-[#3E2415] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-              >
-                <TicketPercent className="h-4 w-4 text-amber-700" />
-                <span>View {currentResult.discountBadge} reward</span>
-                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </button>
-            </div>
-          ) : (
-            <p className="text-stone-500 text-sm font-medium flex items-center gap-2 opacity-70">
-              <Coffee className="w-4 h-4 text-amber-600" />
-              <span>Your mood and coffee reward await...</span>
-            </p>
-          )}
-        </div>
-
-        {/* MANUAL 360 FIDGET SCRUBBER */}
-        <FidgetControls
-          currentFrame={currentFrame}
-          onSetFrame={(frame) => {
-            setCurrentFrame(frame);
-            // Check if settled on one of the 3 faces
-            const face = MOODS.find((m) => m.targetFrame === frame);
-            if (face) {
-              setCurrentResult(face);
-            }
-          }}
-          isSpinning={isSpinning}
-        />
-
-        {/* COLLECTIBLE FACES TRACKER */}
-        <MoodCollection
-          stats={stats}
-          onSelectMood={handleSelectSpecificMood}
-          activeFaceIndex={currentResult?.faceIndex ?? null}
-          isSpinning={isSpinning}
-        />
       </main>
-
-      {/* FOOTER */}
-      <footer className="w-full max-w-4xl mx-auto px-4 py-4 text-center text-xs text-stone-400 border-t border-stone-200/60 z-10 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <p className="flex items-center justify-center gap-1.5 font-medium">
-          <span>3D appearance + 2D animation = extremely fast loading.</span>
-        </p>
-        <p className="text-[11px] text-stone-400">
-          Pure 24-frame 2D image sequence • Zero Three.js/WebGL
-        </p>
-      </footer>
-
-      {/* Behind The Illusion Modal */}
-      <TechInfoModal
-        isOpen={isInfoModalOpen}
-        onClose={() => setIsInfoModalOpen(false)}
-        currentFrame={currentFrame}
-      />
 
       <ResultCard
         result={currentResult}
+        offer={currentResult ? activeOffers[currentResult.faceIndex % activeOffers.length] : null}
         isSpinning={isSpinning}
         isOpen={isOfferModalOpen}
         onClose={closeOfferModal}
+      />
+
+      <CatalogModal
+        offers={activeOffers}
+        isOpen={isCatalogOpen}
+        onClose={() => setIsCatalogOpen(false)}
       />
     </div>
   );

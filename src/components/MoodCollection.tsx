@@ -2,11 +2,14 @@ import React from 'react';
 import { MOODS } from '../utils/frameManager';
 import { TicketPercent, Lock } from 'lucide-react';
 
+import { Offer } from '../lib/api';
+
 interface MoodCollectionProps {
   stats: Record<number, number>;
   onSelectMood: (faceIndex: number) => void;
   activeFaceIndex: number | null;
   isSpinning: boolean;
+  activeOffers: Offer[];
 }
 
 export const MoodCollection: React.FC<MoodCollectionProps> = ({
@@ -14,6 +17,7 @@ export const MoodCollection: React.FC<MoodCollectionProps> = ({
   onSelectMood,
   activeFaceIndex,
   isSpinning,
+  activeOffers,
 }) => {
   return (
     <div className="w-full max-w-md mx-auto mt-6 bg-amber-950/5 border border-stone-200/60 rounded-2xl p-4">
@@ -33,6 +37,10 @@ export const MoodCollection: React.FC<MoodCollectionProps> = ({
           const isUnlocked = count > 0 || activeFaceIndex === mood.faceIndex;
           const isActive = activeFaceIndex === mood.faceIndex;
 
+          const offer = activeOffers.length > 0 ? activeOffers[mood.faceIndex % activeOffers.length] : null;
+          const displayBadge = offer ? offer.value : mood.discountBadge;
+          const displayCode = offer ? offer.code : mood.couponCode;
+
           return (
             <button
               key={mood.faceIndex}
@@ -49,7 +57,7 @@ export const MoodCollection: React.FC<MoodCollectionProps> = ({
                 className="text-[9px] font-black px-2 py-0.5 rounded-full text-white mb-1.5 tracking-wide"
                 style={{ backgroundColor: mood.themeColor }}
               >
-                {mood.discountBadge}
+                {displayBadge}
               </span>
 
               <span className="text-2xl mb-1 select-none">{mood.emoji}</span>
@@ -58,7 +66,7 @@ export const MoodCollection: React.FC<MoodCollectionProps> = ({
               {/* Unlocked Coupon Code or Spin Prompt */}
               {isUnlocked ? (
                 <span className="mt-1 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 border border-stone-200/80">
-                  {mood.couponCode}
+                  {displayCode}
                 </span>
               ) : (
                 <span className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-stone-400 font-medium">
